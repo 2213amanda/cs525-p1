@@ -10,12 +10,32 @@
 
 int main(void)
 {
-    char *greeting = get_greeting("World");
-    if (greeting) {
-        printf("%s\n", greeting);
-        free(greeting); // Free the allocated memory for the greeting
-    } else {
-        printf("Failed to create greeting.\n");
-    }
+    
+    /* variables */
+
+    /* 1. Parse arguments */
+    
+    /* 2. Resolve server */
+    
+    /* 3. Connect */
+    
+    /* 4. Read greeting */
+    
+    /* 5. HELO */
+    
+    /* 6. MAIL FROM */
+    
+    /* 7. RCPT TO */
+    
+    /* 8. DATA */
+    
+    /* 9. Send message */
+    
+    /* 10. QUIT */
+    
+    /* 11. Clean up */
+
     return 0;
+
+    //return 1 when cmd line is wrong, 2 when connection or smtp session fails 
 }

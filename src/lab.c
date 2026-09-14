@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+
 char *get_greeting(const char *restrict name)
 {
   if (name == NULL)
@@ -31,4 +32,35 @@ char *get_greeting(const char *restrict name)
   snprintf(greeting, alloc_size, "Hello, %s!", name);
 
   return greeting;
+}
+
+int parseArgs(int argc, char **argv, char **from, char **to, char **subject, char **body, 
+              char **port, char **helo_host, char **server)
+{
+    return 0;
+}
+
+int resolveAddr(const char *server, const char *port, struct addrinfo **results)
+{
+    return 0;
+}
+
+int serverConnect(struct addrinfo *results)
+{
+    return 0;
+}
+
+int getResponse(int sockfd, int expected_code)
+{
+    return 0;
+}
+
+int sendCommand(int sockfd, const char *command)
+{
+    return 0;
+}
+
+int sendMessage(int sockfd, const char *from, const char *to, const char *subject, const char *body)
+{
+    return 0;
 }
