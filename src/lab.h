@@ -1,6 +1,8 @@
 #ifndef LAB_H
 #define LAB_H
 
+#define _POSIX_C_SOURCE 200112L
+
 #include <netdb.h>
 
 /** * @brief Returns a greeting message.
