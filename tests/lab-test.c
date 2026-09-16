@@ -7,6 +7,10 @@
 #include <getopt.h>
 #include <netdb.h> 
 #include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <string.h>
+#include <unistd.h>
 
 
 void setUp(void) {
@@ -314,6 +318,241 @@ void test_resolveAddr_empty_server(void){
 }
 
 
+// serverConnect tests
+
+void test_serverConnect_localhost(void){
+
+    int listenfd;
+    int sockfd;
+    int clientfd;
+
+    struct sockaddr_in server_addr;
+    socklen_t addr_len;
+
+    struct addrinfo *results = NULL;
+
+    listenfd = socket(AF_INET, SOCK_STREAM, 0);
+
+    TEST_ASSERT_NOT_EQUAL(-1, listenfd);
+
+    memset(&server_addr, 0, sizeof(server_addr));
+
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+
+    server_addr.sin_port = htons(0);
+
+    TEST_ASSERT_EQUAL_INT(0, bind(listenfd, (struct sockaddr *)&server_addr, sizeof(server_addr)));
+
+    addr_len = sizeof(server_addr);
+
+    TEST_ASSERT_EQUAL_INT(0, getsockname(listenfd, (struct sockaddr *)&server_addr, &addr_len));
+
+    TEST_ASSERT_EQUAL_INT(0, listen(listenfd, 1));
+
+    char port[16];
+
+    snprintf(port, sizeof(port), "%u", ntohs(server_addr.sin_port));
+
+    TEST_ASSERT_EQUAL_INT(0, resolveAddr("127.0.0.1", port, &results));
+
+    TEST_ASSERT_NOT_NULL(results);
+
+    sockfd = serverConnect(results);
+
+    TEST_ASSERT_NOT_EQUAL(-1, sockfd);
+
+    clientfd = accept(listenfd, NULL, NULL);
+
+    TEST_ASSERT_NOT_EQUAL(-1, clientfd);
+
+    close(clientfd);
+    close(sockfd);
+    close(listenfd);
+
+    freeaddrinfo(results);
+}
+
+
+void test_serverConnect_no_server(void){
+
+    struct addrinfo *results = NULL;
+
+    TEST_ASSERT_EQUAL_INT(0, resolveAddr("127.0.0.1", "1", &results));
+
+    TEST_ASSERT_NOT_NULL(results);
+
+    int sockfd = serverConnect(results);
+
+    TEST_ASSERT_EQUAL_INT(-1, sockfd);
+
+    freeaddrinfo(results);
+}
+
+void test_serverConnect_null_results(void){
+
+    int sockfd = serverConnect(NULL);
+
+    TEST_ASSERT_EQUAL_INT(-1, sockfd);
+}
+
+
+//getResponse tests
+
+void test_getResponse_correct_code(void){
+
+    int sockets[2];
+
+    TEST_ASSERT_EQUAL_INT(0, socketpair(AF_UNIX, SOCK_STREAM, 0, sockets));
+
+    const char *response =
+        "220 mail.example.com ESMTP\r\n";
+
+    ssize_t bytes_sent = send(
+        sockets[0],
+        response,
+        strlen(response),
+        0
+    );
+
+    TEST_ASSERT_EQUAL_INT(strlen(response), bytes_sent);
+
+    int result = getResponse(sockets[1], 220);
+
+    TEST_ASSERT_EQUAL_INT(0, result);
+
+    close(sockets[0]);
+    close(sockets[1]);
+}
+
+void test_getResponse_wrong_code(void){
+
+    int sockets[2];
+
+    TEST_ASSERT_EQUAL_INT(0, socketpair(AF_UNIX, SOCK_STREAM, 0, sockets));
+
+    const char *response =
+        "550 Mailbox unavailable\r\n";
+
+    ssize_t bytes_sent = send(
+        sockets[0],
+        response,
+        strlen(response),
+        0
+    );
+
+    TEST_ASSERT_EQUAL_INT(strlen(response), bytes_sent);
+
+    int result = getResponse(sockets[1], 220);
+
+    TEST_ASSERT_NOT_EQUAL(0, result);
+
+    close(sockets[0]);
+    close(sockets[1]);
+}
+
+
+void test_getResponse_multiline(void){
+
+    int sockets[2];
+
+    TEST_ASSERT_EQUAL_INT(0, socketpair(AF_UNIX, SOCK_STREAM, 0, sockets));
+
+    const char *response =
+        "250-mail.example.com\r\n"
+        "250-SIZE 10000000\r\n"
+        "250-8BITMIME\r\n"
+        "250 OK\r\n";
+
+    ssize_t bytes_sent = send(
+        sockets[0],
+        response,
+        strlen(response),
+        0
+    );
+
+    TEST_ASSERT_EQUAL_INT(strlen(response), bytes_sent);
+
+    int result = getResponse(sockets[1], 250);
+
+    TEST_ASSERT_EQUAL_INT(0, result);
+
+    close(sockets[0]);
+    close(sockets[1]);
+}
+
+
+void test_getResponse_invalid_response(void){
+
+    int sockets[2];
+
+    TEST_ASSERT_EQUAL_INT(0, socketpair(AF_UNIX, SOCK_STREAM, 0, sockets));
+
+    const char *response =
+        "ABC Invalid response\r\n";
+
+    ssize_t bytes_sent = send(
+        sockets[0],
+        response,
+        strlen(response),
+        0
+    );
+
+    TEST_ASSERT_EQUAL_INT(strlen(response), bytes_sent);
+
+    int result = getResponse(sockets[1], 220);
+
+    TEST_ASSERT_NOT_EQUAL(0, result);
+
+    close(sockets[0]);
+    close(sockets[1]);
+}
+
+
+void test_getResponse_connection_closed(void){
+
+    int sockets[2];
+
+    TEST_ASSERT_EQUAL_INT(0, socketpair(AF_UNIX, SOCK_STREAM, 0, sockets));
+
+    close(sockets[0]);
+
+    int result = getResponse(sockets[1], 220);
+
+    TEST_ASSERT_NOT_EQUAL(0, result);
+
+    close(sockets[1]);
+}
+
+
+void test_getResponse_short_response(void){
+    
+    int sockets[2];
+
+    TEST_ASSERT_EQUAL_INT(0, socketpair(AF_UNIX, SOCK_STREAM, 0, sockets));
+
+    const char *response =
+        "22\r\n";
+
+    ssize_t bytes_sent = send(
+        sockets[0],
+        response,
+        strlen(response),
+        0
+    );
+
+    TEST_ASSERT_EQUAL_INT(strlen(response), bytes_sent);
+
+    int result = getResponse(sockets[1], 220);
+
+    TEST_ASSERT_NOT_EQUAL(0, result);
+
+    close(sockets[0]);
+    close(sockets[1]);
+}
+
+
+
 
 int main(void) {
   UNITY_BEGIN();
@@ -330,5 +569,14 @@ int main(void) {
   RUN_TEST(test_resolveAddr_invalid_server);
   RUN_TEST(test_resolveAddr_invalid_port);
   RUN_TEST(test_resolveAddr_empty_server);
+  RUN_TEST(test_serverConnect_localhost);
+  RUN_TEST(test_serverConnect_no_server);
+  RUN_TEST(test_serverConnect_null_results);
+  RUN_TEST(test_getResponse_correct_code);
+  RUN_TEST(test_getResponse_wrong_code);
+  RUN_TEST(test_getResponse_multiline);
+  RUN_TEST(test_getResponse_invalid_response);
+  RUN_TEST(test_getResponse_connection_closed);
+  RUN_TEST(test_getResponse_short_response);
   return UNITY_END();
 }

@@ -112,22 +112,99 @@ int resolveAddr(const char *server, const char *port, struct addrinfo **results)
     return 0;
 }
 
-int serverConnect(struct addrinfo *results)
-{
+int serverConnect(struct addrinfo *results){
+
+    struct addrinfo *current;
+    int sockfd;
+
+    for (current = results; current != NULL; current = current->ai_next) {
+
+        sockfd = socket(current->ai_family, current->ai_socktype, current->ai_protocol);
+
+        if (sockfd == -1) {
+            continue;
+        }
+
+        if (connect(sockfd, current->ai_addr, current->ai_addrlen) == 0) {
+            return sockfd;
+        }
+
+        close(sockfd);
+    }
+
+    fprintf(stderr, "Error: could not connect to server\n");
+
+    return -1;
+}
+
+int getResponse(int sockfd, int expected_code){
+
+    char buffer[1024];
+    int position = 0;
+    int code;
+    char c;
+
+    while (1) {
+        position = 0;
+
+        while (position < (int)sizeof(buffer) - 1) {
+            ssize_t bytes_read = recv(sockfd, &c, 1, 0);
+
+            if (bytes_read == 0) {
+                fprintf(stderr, "Error: server closed connection\n");
+                return 1;
+            }
+
+            if (bytes_read < 0) {
+                perror("recv");
+                return 1;
+            }
+
+            buffer[position++] = c;
+
+            if (c == '\n') {
+                break;
+            }
+        }
+
+        buffer[position] = '\0';
+
+        if (position < 3) {
+            fprintf(stderr, "Error: invalid SMTP response\n");
+            return 1;
+        }
+
+        if (buffer[0] < '0' || buffer[0] > '9' ||
+            buffer[1] < '0' || buffer[1] > '9' ||
+            buffer[2] < '0' || buffer[2] > '9') {
+
+            fprintf(stderr, "Error: invalid SMTP response: %s", buffer);
+            return 1;
+        }
+
+        code = (buffer[0] - '0') * 100 +
+               (buffer[1] - '0') * 10 +
+               (buffer[2] - '0');
+
+        if (position >= 4 && buffer[3] == '-') {
+            continue;
+        }
+
+        if (code != expected_code) {
+            fprintf(stderr,
+                    "Error: expected SMTP response %d, got %d\n", expected_code, code);
+            return 1;
+        }
+
+        return 0;
+    }
+}
+
+
+int sendCommand(int sockfd, const char *command){
     return 0;
 }
 
-int getResponse(int sockfd, int expected_code)
-{
-    return 0;
-}
-
-int sendCommand(int sockfd, const char *command)
-{
-    return 0;
-}
-
-int sendMessage(int sockfd, const char *from, const char *to, const char *subject, const char *body)
-{
+int sendMessage(int sockfd, const char *from, const char *to, const char *subject, const char *body){
     return 0;
 }
