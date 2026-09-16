@@ -526,7 +526,7 @@ void test_getResponse_connection_closed(void){
 
 
 void test_getResponse_short_response(void){
-    
+
     int sockets[2];
 
     TEST_ASSERT_EQUAL_INT(0, socketpair(AF_UNIX, SOCK_STREAM, 0, sockets));
@@ -551,6 +551,383 @@ void test_getResponse_short_response(void){
     close(sockets[1]);
 }
 
+//sendCommand tests
+
+void test_sendCommand_helo(void){
+
+    int sockets[2];
+    char buffer[1024];
+
+    TEST_ASSERT_EQUAL_INT(
+        0,
+        socketpair(AF_UNIX, SOCK_STREAM, 0, sockets)
+    );
+
+    int result = sendCommand(sockets[0], "HELO localhost");
+
+    TEST_ASSERT_EQUAL_INT(0, result);
+
+    ssize_t bytes_read = recv(
+        sockets[1],
+        buffer,
+        sizeof(buffer) - 1,
+        0
+    );
+
+    TEST_ASSERT_GREATER_THAN(0, bytes_read);
+
+    buffer[bytes_read] = '\0';
+
+    TEST_ASSERT_EQUAL_STRING(
+        "HELO localhost\r\n",
+        buffer
+    );
+
+    close(sockets[0]);
+    close(sockets[1]);
+}
+
+
+void test_sendCommand_mail_from(void){
+
+    int sockets[2];
+    char buffer[1024];
+
+    TEST_ASSERT_EQUAL_INT(
+        0,
+        socketpair(AF_UNIX, SOCK_STREAM, 0, sockets)
+    );
+
+    int result = sendCommand(
+        sockets[0],
+        "MAIL FROM:<alice@example.com>"
+    );
+
+    TEST_ASSERT_EQUAL_INT(0, result);
+
+    ssize_t bytes_read = recv(
+        sockets[1],
+        buffer,
+        sizeof(buffer) - 1,
+        0
+    );
+
+    TEST_ASSERT_GREATER_THAN(0, bytes_read);
+
+    buffer[bytes_read] = '\0';
+
+    TEST_ASSERT_EQUAL_STRING(
+        "MAIL FROM:<alice@example.com>\r\n",
+        buffer
+    );
+
+    close(sockets[0]);
+    close(sockets[1]);
+}
+
+
+void test_sendCommand_rcpt_to(void){
+
+    int sockets[2];
+    char buffer[1024];
+
+    TEST_ASSERT_EQUAL_INT(
+        0,
+        socketpair(AF_UNIX, SOCK_STREAM, 0, sockets)
+    );
+
+    int result = sendCommand(
+        sockets[0],
+        "RCPT TO:<bob@example.com>"
+    );
+
+    TEST_ASSERT_EQUAL_INT(0, result);
+
+    ssize_t bytes_read = recv(
+        sockets[1],
+        buffer,
+        sizeof(buffer) - 1,
+        0
+    );
+
+    TEST_ASSERT_GREATER_THAN(0, bytes_read);
+
+    buffer[bytes_read] = '\0';
+
+    TEST_ASSERT_EQUAL_STRING(
+        "RCPT TO:<bob@example.com>\r\n",
+        buffer
+    );
+
+    close(sockets[0]);
+    close(sockets[1]);
+}
+
+
+void test_sendCommand_data(void){
+
+    int sockets[2];
+    char buffer[1024];
+
+    TEST_ASSERT_EQUAL_INT(
+        0,
+        socketpair(AF_UNIX, SOCK_STREAM, 0, sockets)
+    );
+
+    int result = sendCommand(sockets[0], "DATA");
+
+    TEST_ASSERT_EQUAL_INT(0, result);
+
+    ssize_t bytes_read = recv(
+        sockets[1],
+        buffer,
+        sizeof(buffer) - 1,
+        0
+    );
+
+    TEST_ASSERT_GREATER_THAN(0, bytes_read);
+
+    buffer[bytes_read] = '\0';
+
+    TEST_ASSERT_EQUAL_STRING(
+        "DATA\r\n",
+        buffer
+    );
+
+    close(sockets[0]);
+    close(sockets[1]);
+}
+
+
+void test_sendCommand_quit(void){
+
+    int sockets[2];
+    char buffer[1024];
+
+    TEST_ASSERT_EQUAL_INT(
+        0,
+        socketpair(AF_UNIX, SOCK_STREAM, 0, sockets)
+    );
+
+    int result = sendCommand(sockets[0], "QUIT");
+
+    TEST_ASSERT_EQUAL_INT(0, result);
+
+    ssize_t bytes_read = recv(
+        sockets[1],
+        buffer,
+        sizeof(buffer) - 1,
+        0
+    );
+
+    TEST_ASSERT_GREATER_THAN(0, bytes_read);
+
+    buffer[bytes_read] = '\0';
+
+    TEST_ASSERT_EQUAL_STRING(
+        "QUIT\r\n",
+        buffer
+    );
+
+    close(sockets[0]);
+    close(sockets[1]);
+}
+
+
+void test_sendCommand_empty(void){
+
+    int sockets[2];
+    char buffer[1024];
+
+    TEST_ASSERT_EQUAL_INT(
+        0,
+        socketpair(AF_UNIX, SOCK_STREAM, 0, sockets)
+    );
+
+    int result = sendCommand(sockets[0], "");
+
+    TEST_ASSERT_EQUAL_INT(0, result);
+
+    ssize_t bytes_read = recv(
+        sockets[1],
+        buffer,
+        sizeof(buffer) - 1,
+        0
+    );
+
+    TEST_ASSERT_EQUAL_INT(2, bytes_read);
+
+    buffer[bytes_read] = '\0';
+
+    TEST_ASSERT_EQUAL_STRING(
+        "\r\n",
+        buffer
+    );
+
+    close(sockets[0]);
+    close(sockets[1]);
+}
+
+
+void test_sendCommand_null(void){
+
+    int sockets[2];
+
+    TEST_ASSERT_EQUAL_INT(
+        0,
+        socketpair(AF_UNIX, SOCK_STREAM, 0, sockets)
+    );
+
+    int result = sendCommand(sockets[0], NULL);
+
+    TEST_ASSERT_NOT_EQUAL(0, result);
+
+    close(sockets[0]);
+    close(sockets[1]);
+}
+
+//sendMessage tests
+
+void test_sendMessage_sends_message(void){
+
+    int sockets[2];
+    char buffer[1024];
+    ssize_t bytes_read;
+
+    const char *from = "alice@example.com";
+    const char *to = "bob@example.com";
+    const char *subject = "Test message";
+    const char *body = "Hello Bob!\r\nThis is a test.";
+
+    const char *expected =
+        "From: alice@example.com\r\n"
+        "To: bob@example.com\r\n"
+        "Subject: Test message\r\n"
+        "\r\n"
+        "Hello Bob!\r\n"
+        "This is a test.\r\n"
+        "\r\n.\r\n";
+
+    TEST_ASSERT_EQUAL_INT(0,
+        socketpair(AF_UNIX, SOCK_STREAM, 0, sockets));
+
+    TEST_ASSERT_EQUAL_INT(
+        0,
+        sendMessage(sockets[0], from, to, subject, body)
+    );
+
+    bytes_read = recv(sockets[1], buffer, sizeof(buffer) - 1, 0);
+
+    TEST_ASSERT_GREATER_THAN_INT(0, bytes_read);
+
+    buffer[bytes_read] = '\0';
+
+    TEST_ASSERT_EQUAL_STRING(expected, buffer);
+
+    close(sockets[0]);
+    close(sockets[1]);
+}
+
+
+void test_sendMessage_dot_stuffs_single_dot(void){
+
+    int sockets[2];
+    char buffer[1024];
+    ssize_t bytes_read;
+
+    const char *from = "alice@example.com";
+    const char *to = "bob@example.com";
+    const char *subject = "Dot test";
+    const char *body =
+        "First line\r\n"
+        ".\r\n"
+        "Last line";
+
+    const char *expected =
+        "From: alice@example.com\r\n"
+        "To: bob@example.com\r\n"
+        "Subject: Dot test\r\n"
+        "\r\n"
+        "First line\r\n"
+        "..\r\n"
+        "Last line\r\n"
+        "\r\n.\r\n";
+
+    TEST_ASSERT_EQUAL_INT(0,
+        socketpair(AF_UNIX, SOCK_STREAM, 0, sockets));
+
+    TEST_ASSERT_EQUAL_INT(
+        0,
+        sendMessage(sockets[0], from, to, subject, body)
+    );
+
+    bytes_read = recv(sockets[1], buffer, sizeof(buffer) - 1, 0);
+
+    TEST_ASSERT_GREATER_THAN_INT(0, bytes_read);
+
+    buffer[bytes_read] = '\0';
+
+    TEST_ASSERT_EQUAL_STRING(expected, buffer);
+
+    close(sockets[0]);
+    close(sockets[1]);
+}
+
+
+void test_sendMessage_null_parameters(void){
+
+    int sockets[2];
+
+    TEST_ASSERT_EQUAL_INT(0,
+        socketpair(AF_UNIX, SOCK_STREAM, 0, sockets));
+
+    TEST_ASSERT_NOT_EQUAL(
+        0,
+        sendMessage(
+            sockets[0],
+            NULL,
+            "bob@example.com",
+            "Test",
+            "Hello"
+        )
+    );
+
+    TEST_ASSERT_NOT_EQUAL(
+        0,
+        sendMessage(
+            sockets[0],
+            "alice@example.com",
+            NULL,
+            "Test",
+            "Hello"
+        )
+    );
+
+    TEST_ASSERT_NOT_EQUAL(
+        0,
+        sendMessage(
+            sockets[0],
+            "alice@example.com",
+            "bob@example.com",
+            NULL,
+            "Hello"
+        )
+    );
+
+    TEST_ASSERT_NOT_EQUAL(
+        0,
+        sendMessage(
+            sockets[0],
+            "alice@example.com",
+            "bob@example.com",
+            "Test",
+            NULL
+        )
+    );
+
+    close(sockets[0]);
+    close(sockets[1]);
+}
 
 
 
@@ -578,5 +955,15 @@ int main(void) {
   RUN_TEST(test_getResponse_invalid_response);
   RUN_TEST(test_getResponse_connection_closed);
   RUN_TEST(test_getResponse_short_response);
+  RUN_TEST(test_sendCommand_helo);
+  RUN_TEST(test_sendCommand_mail_from);
+  RUN_TEST(test_sendCommand_rcpt_to);
+  RUN_TEST(test_sendCommand_data);
+  RUN_TEST(test_sendCommand_quit);
+  RUN_TEST(test_sendCommand_empty);
+  RUN_TEST(test_sendCommand_null);
+  RUN_TEST(test_sendMessage_sends_message);
+  RUN_TEST(test_sendMessage_dot_stuffs_single_dot);
+  RUN_TEST(test_sendMessage_null_parameters);
   return UNITY_END();
 }

@@ -202,9 +202,171 @@ int getResponse(int sockfd, int expected_code){
 
 
 int sendCommand(int sockfd, const char *command){
+
+    size_t command_len;
+    size_t total_sent = 0;
+    ssize_t bytes_sent;
+
+    if (command == NULL) {
+        fprintf(stderr, "Error: command is NULL\n");
+        return 1;
+    }
+
+    command_len = strlen(command);
+
+    while (total_sent < command_len) {
+        bytes_sent = send(sockfd,
+                          command + total_sent,
+                          command_len - total_sent,
+                          0);
+
+        if (bytes_sent < 0) {
+            perror("send");
+            return 1;
+        }
+
+        if (bytes_sent == 0) {
+            fprintf(stderr, "Error: send returned 0\n");
+            return 1;
+        }
+
+        total_sent += (size_t)bytes_sent;
+    }
+
+
+    if (send(sockfd, "\r\n", 2, 0) != 2) {
+        perror("send");
+        return 1;
+    }
+
     return 0;
 }
 
+
+
 int sendMessage(int sockfd, const char *from, const char *to, const char *subject, const char *body){
+
+    const char *current;
+    const char *line_start;
+    const char *line_end;
+    size_t line_length;
+    size_t total_sent;
+    ssize_t bytes_sent;
+
+    char header[1024];
+    int header_length;
+
+    if (from == NULL || to == NULL || subject == NULL || body == NULL) {
+        fprintf(stderr, "Error: NULL message parameter\n");
+        return 1;
+    }
+
+    header_length = snprintf(
+        header,
+        sizeof(header),
+        "From: %s\r\n"
+        "To: %s\r\n"
+        "Subject: %s\r\n"
+        "\r\n",
+        from,
+        to,
+        subject
+    );
+
+    if (header_length < 0 || (size_t)header_length >= sizeof(header)) {
+        fprintf(stderr, "Error: message headers are too long\n");
+        return 1;
+    }
+
+    total_sent = 0;
+
+    while (total_sent < (size_t)header_length) {
+        bytes_sent = send(
+            sockfd,
+            header + total_sent,
+            (size_t)header_length - total_sent,
+            0
+        );
+
+        if (bytes_sent < 0) {
+            perror("send");
+            return 1;
+        }
+
+        if (bytes_sent == 0) {
+            fprintf(stderr, "Error: send returned 0\n");
+            return 1;
+        }
+
+        total_sent += (size_t)bytes_sent;
+    }
+
+    current = body;
+
+    while (*current != '\0') {
+        line_start = current;
+
+        while (*current != '\0' && *current != '\n') {
+            current++;
+        }
+
+        line_end = current;
+
+        line_length = (size_t)(line_end - line_start);
+
+        if (line_length > 0 &&
+            line_start[line_length - 1] == '\r') {
+            line_length--;
+        }
+
+        if (line_length > 0 && line_start[0] == '.') {
+            char dot = '.';
+
+            if (send(sockfd, &dot, 1, 0) != 1) {
+                perror("send");
+                return 1;
+            }
+        }
+
+        total_sent = 0;
+
+        while (total_sent < line_length) {
+            bytes_sent = send(
+                sockfd,
+                line_start + total_sent,
+                line_length - total_sent,
+                0
+            );
+
+            if (bytes_sent < 0) {
+                perror("send");
+                return 1;
+            }
+
+            if (bytes_sent == 0) {
+                fprintf(stderr, "Error: send returned 0\n");
+                return 1;
+            }
+
+            total_sent += (size_t)bytes_sent;
+        }
+
+        if (send(sockfd, "\r\n", 2, 0) != 2) {
+            perror("send");
+            return 1;
+        }
+
+        if (*current == '\n') {
+            current++;
+        }
+    }
+
+    if (send(sockfd, "\r\n.\r\n", 5, 0) != 5) {
+        perror("send");
+        return 1;
+    }
+
     return 0;
 }
+
+
