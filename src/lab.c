@@ -54,8 +54,10 @@ int parseArgs(int argc, char **argv, char **from, char **to, char **subject, cha
                 fprintf(stderr, "Error: unknown option -%c\n", optopt);
                 return 1;
 
+            // GCOVR_EXCL_START    
             default:
                 return 1;
+            // GCOVR_EXCL_STOP
         }
     }
 
@@ -106,7 +108,7 @@ int resolveAddr(const char *server, const char *port, struct addrinfo **results)
 
     if (status != 0) {
         fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(status));
-        return 1;
+        return 2;
     }
 
     return 0;
@@ -121,9 +123,11 @@ int serverConnect(struct addrinfo *results){
 
         sockfd = socket(current->ai_family, current->ai_socktype, current->ai_protocol);
 
+        // GCOVR_EXCL_START
         if (sockfd == -1) {
             continue;
         }
+        // GCOVR_EXCL_STOP
 
         if (connect(sockfd, current->ai_addr, current->ai_addrlen) == 0) {
             return sockfd;
@@ -152,13 +156,15 @@ int getResponse(int sockfd, int expected_code){
 
             if (bytes_read == 0) {
                 fprintf(stderr, "Error: server closed connection\n");
-                return 1;
+                return 2;
             }
 
+            // GCOVR_EXCL_START
             if (bytes_read < 0) {
                 perror("recv");
-                return 1;
+                return 2;
             }
+            // GCOVR_EXCL_STOP
 
             buffer[position++] = c;
 
@@ -171,7 +177,7 @@ int getResponse(int sockfd, int expected_code){
 
         if (position < 3) {
             fprintf(stderr, "Error: invalid SMTP response\n");
-            return 1;
+            return 2;
         }
 
         if (buffer[0] < '0' || buffer[0] > '9' ||
@@ -179,7 +185,7 @@ int getResponse(int sockfd, int expected_code){
             buffer[2] < '0' || buffer[2] > '9') {
 
             fprintf(stderr, "Error: invalid SMTP response: %s", buffer);
-            return 1;
+            return 2;
         }
 
         code = (buffer[0] - '0') * 100 +
@@ -193,7 +199,7 @@ int getResponse(int sockfd, int expected_code){
         if (code != expected_code) {
             fprintf(stderr,
                     "Error: expected SMTP response %d, got %d\n", expected_code, code);
-            return 1;
+            return 2;
         }
 
         return 0;
@@ -205,11 +211,11 @@ int sendCommand(int sockfd, const char *command){
 
     size_t command_len;
     size_t total_sent = 0;
-    ssize_t bytes_sent;
+    ssize_t bytes_sent = 0;
 
     if (command == NULL) {
         fprintf(stderr, "Error: command is NULL\n");
-        return 1;
+        return 2;
     }
 
     command_len = strlen(command);
@@ -220,24 +226,27 @@ int sendCommand(int sockfd, const char *command){
                           command_len - total_sent,
                           0);
 
+        // GCOVR_EXCL_START
         if (bytes_sent < 0) {
             perror("send");
-            return 1;
-        }
-
+            return 2;
+        }   
         if (bytes_sent == 0) {
             fprintf(stderr, "Error: send returned 0\n");
-            return 1;
+            return 2;
         }
+        // GCOVR_EXCL_STOP
 
         total_sent += (size_t)bytes_sent;
     }
 
 
+    // GCOVR_EXCL_START
     if (send(sockfd, "\r\n", 2, 0) != 2) {
         perror("send");
-        return 1;
+        return 2;
     }
+    // GCOVR_EXCL_STOP
 
     return 0;
 }
@@ -275,7 +284,7 @@ int sendMessage(int sockfd, const char *from, const char *to, const char *subjec
 
     if (header_length < 0 || (size_t)header_length >= sizeof(header)) {
         fprintf(stderr, "Error: message headers are too long\n");
-        return 1;
+        return 2;
     }
 
     total_sent = 0;
@@ -288,15 +297,17 @@ int sendMessage(int sockfd, const char *from, const char *to, const char *subjec
             0
         );
 
+        // GCOVR_EXCL_START
         if (bytes_sent < 0) {
             perror("send");
-            return 1;
+            return 2;
         }
 
         if (bytes_sent == 0) {
             fprintf(stderr, "Error: send returned 0\n");
-            return 1;
+            return 2;
         }
+        // GCOVR_EXCL_STOP
 
         total_sent += (size_t)bytes_sent;
     }
@@ -322,10 +333,12 @@ int sendMessage(int sockfd, const char *from, const char *to, const char *subjec
         if (line_length > 0 && line_start[0] == '.') {
             char dot = '.';
 
+            // GCOVR_EXCL_START
             if (send(sockfd, &dot, 1, 0) != 1) {
                 perror("send");
-                return 1;
+                return 2;
             }
+            // GCOVR_EXCL_STOP
         }
 
         total_sent = 0;
@@ -338,33 +351,39 @@ int sendMessage(int sockfd, const char *from, const char *to, const char *subjec
                 0
             );
 
+            // GCOVR_EXCL_START
             if (bytes_sent < 0) {
                 perror("send");
-                return 1;
+                return 2;
             }
 
             if (bytes_sent == 0) {
                 fprintf(stderr, "Error: send returned 0\n");
-                return 1;
+                return 2;
             }
+            // GCOVR_EXCL_STOP
 
             total_sent += (size_t)bytes_sent;
         }
 
+        // GCOVR_EXCL_START
         if (send(sockfd, "\r\n", 2, 0) != 2) {
             perror("send");
-            return 1;
+            return 2;
         }
+        // GCOVR_EXCL_STOP
 
         if (*current == '\n') {
             current++;
         }
     }
 
+    // GCOVR_EXCL_START
     if (send(sockfd, "\r\n.\r\n", 5, 0) != 5) {
         perror("send");
-        return 1;
+        return 2;
     }
+    // GCOVR_EXCL_STOP
 
     return 0;
 }

@@ -198,13 +198,40 @@ void test_parseArgs_unknown_option(void){
     TEST_ASSERT_NOT_EQUAL(0, result);
 }
 
-void test_parseArgs_missing_option_argument(void){
+void test_parseArgs_missing_option_argument_a(void){
 
     char *argv[] = {
         "myapp",
-        "-f",
+        "-f", "alice@example.com",
         "-t", "bob@example.com",
+        "-s", "Test Subject",
+        "-b", "Hello Bob!",
+        "-p", 
+        "-H", "mycomputer",
         "mail.example.com"
+    };
+
+    int argc = sizeof(argv) / sizeof(argv[0]);
+
+    char *from;
+    char *to;
+    char *subject;
+    char *body;
+    char *port;
+    char *helo_host;
+    char *server;
+
+    int result = parseArgs(argc, argv, &from, &to, &subject, &body,
+                           &port, &helo_host, &server);
+
+    TEST_ASSERT_NOT_EQUAL(0, result);
+}
+
+void test_parseArgs_missing_option_argument_b(void){
+
+    char *argv[] = {
+        "myapp",
+        "-f"
     };
 
     int argc = sizeof(argv) / sizeof(argv[0]);
@@ -433,6 +460,32 @@ void test_getResponse_wrong_code(void){
 
     const char *response =
         "550 Mailbox unavailable\r\n";
+
+    ssize_t bytes_sent = send(
+        sockets[0],
+        response,
+        strlen(response),
+        0
+    );
+
+    TEST_ASSERT_EQUAL_INT(strlen(response), bytes_sent);
+
+    int result = getResponse(sockets[1], 220);
+
+    TEST_ASSERT_NOT_EQUAL(0, result);
+
+    close(sockets[0]);
+    close(sockets[1]);
+}
+
+void test_getResponse_short_code(void){
+
+    int sockets[2];
+
+    TEST_ASSERT_EQUAL_INT(0, socketpair(AF_UNIX, SOCK_STREAM, 0, sockets));
+
+    const char *response =
+        "2\n";
 
     ssize_t bytes_sent = send(
         sockets[0],
@@ -929,6 +982,38 @@ void test_sendMessage_null_parameters(void){
     close(sockets[1]);
 }
 
+void test_sendMessage_headers_too_long(void)
+{
+    int sockets[2];
+
+    TEST_ASSERT_EQUAL_INT(
+        0,
+        socketpair(AF_UNIX, SOCK_STREAM, 0, sockets)
+    );
+
+    char from[1000];
+
+    memset(from, 'A', sizeof(from) - 1);
+    from[sizeof(from) - 1] = '\0';
+
+    const char *to = "bob@example.com";
+    const char *subject = "Test";
+    const char *body = "Hello";
+
+    int result = sendMessage(
+        sockets[0],
+        from,
+        to,
+        subject,
+        body
+    );
+
+    TEST_ASSERT_EQUAL_INT(2, result);
+
+    close(sockets[0]);
+    close(sockets[1]);
+}
+
 
 
 int main(void) {
@@ -939,7 +1024,8 @@ int main(void) {
   RUN_TEST(test_parseArgs_missing_to);
   RUN_TEST(test_parseArgs_missing_server);
   RUN_TEST(test_parseArgs_unknown_option);
-  RUN_TEST(test_parseArgs_missing_option_argument);
+  RUN_TEST(test_parseArgs_missing_option_argument_a);
+  RUN_TEST(test_parseArgs_missing_option_argument_b);
   RUN_TEST(test_parseArgs_extra_argument);
   RUN_TEST(test_resolveAddr_localhost);
   RUN_TEST(test_resolveAddr_ipv4_loopback);
@@ -951,6 +1037,7 @@ int main(void) {
   RUN_TEST(test_serverConnect_null_results);
   RUN_TEST(test_getResponse_correct_code);
   RUN_TEST(test_getResponse_wrong_code);
+  RUN_TEST(test_getResponse_short_code);
   RUN_TEST(test_getResponse_multiline);
   RUN_TEST(test_getResponse_invalid_response);
   RUN_TEST(test_getResponse_connection_closed);
@@ -965,5 +1052,6 @@ int main(void) {
   RUN_TEST(test_sendMessage_sends_message);
   RUN_TEST(test_sendMessage_dot_stuffs_single_dot);
   RUN_TEST(test_sendMessage_null_parameters);
+  RUN_TEST(test_sendMessage_headers_too_long);
   return UNITY_END();
 }
