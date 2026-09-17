@@ -69,10 +69,6 @@ int parseArgs(int argc, char **argv, char **from, char **to, char **subject, cha
         fprintf(stderr, "Error: -t <to> is required\n");
         return 1;
     }
-    // if (*subject == NULL) {
-    //     fprintf(stderr, "Error: -s <subject> is required\n");
-    //     return 1;
-    // } //FIXME causing problems circle back later
 
     
     if (optind >= argc) {
